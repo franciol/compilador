@@ -68,13 +68,13 @@ class Parser:
                         if(Parser.tokens.actual.Type == "INT"):
                             endValue += Parser.tokens.actual.value
                         else:
-                            raise Exception("ERRO", "Sistema incorreto")
+                            raise Exception("ERRO", "Sintaxe incorreta")
                     elif(Parser.tokens.actual.Type == "MINUS"):
                         Parser.tokens.selectNext()
                         if(Parser.tokens.actual.Type == "INT"):
                             endValue -= Parser.tokens.actual.value
                         else:
-                            raise Exception("Erro", "Sistema incorreto")
+                            raise Exception("Erro", "Sintaxe incorreta")
 
                     Parser.tokens.selectNext()
 
