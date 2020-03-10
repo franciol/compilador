@@ -1,4 +1,5 @@
 import sys
+import re
 
 
 class Token:
@@ -7,11 +8,6 @@ class Token:
 
 
 class Tokenizer:
-    # 4 Tipos de Tokens:
-    # INT
-    # PLUS
-    # MINUS
-    # EOF
 
     def __init__(self, origin):
         self.position = 0
@@ -42,6 +38,12 @@ class Tokenizer:
             elif(self.origin[self.position-1] == "-"):
                 self.actual.Type = "MINUS"
                 self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "*"):
+                self.actual.Type = "MULT"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "/"):
+                self.actual.Type = "DIV"
+                self.actual.value = (self.origin[self.position-1])
             elif(self.origin[self.position-1] == " "):
                 goAgain = True
             else:
@@ -54,25 +56,23 @@ class Parser:
     tokens = None
 
     @staticmethod
-    def parseExpression(tokens):
-        # Consome tokens do Tokenizer e analisa se a sintaxe esta aderente à gramatica proposta
+    def parseTerm(tokens):
         Parser.tokens.selectNext()
         try:
             if(Parser.tokens.actual.Type == "INT"):
                 endValue = Parser.tokens.actual.value
                 Parser.tokens.selectNext()
-
-                while (Parser.tokens.actual.Type == "PLUS" or Parser.tokens.actual.Type == "MINUS"):
-                    if(Parser.tokens.actual.Type == "PLUS"):
+                while (Parser.tokens.actual.Type == "DIV" or Parser.tokens.actual.Type == "MULT"):
+                    if(Parser.tokens.actual.Type == "MULT"):
                         Parser.tokens.selectNext()
                         if(Parser.tokens.actual.Type == "INT"):
-                            endValue += Parser.tokens.actual.value
+                            endValue *= Parser.tokens.actual.value
                         else:
                             raise Exception("ERRO", "Sintaxe incorreta")
-                    elif(Parser.tokens.actual.Type == "MINUS"):
+                    elif(Parser.tokens.actual.Type == "DIV"):
                         Parser.tokens.selectNext()
                         if(Parser.tokens.actual.Type == "INT"):
-                            endValue -= Parser.tokens.actual.value
+                            endValue //= Parser.tokens.actual.value
                         else:
                             raise Exception("Erro", "Sintaxe incorreta")
 
@@ -80,15 +80,39 @@ class Parser:
 
                 return endValue
 
+            else:
+                raise Exception("Error", "")
+                exit(0)
         except Exception as e:
             print(e)
 
     @staticmethod
+    def parseExpression(tokens):
+        temp_value = Parser.parseTerm(tokens)
+        while(Parser.tokens.actual.Type == "PLUS" or Parser.tokens.actual.Type == "MINUS"):
+            if(Parser.tokens.actual.Type == "PLUS"):
+                temp_value += Parser.parseTerm(tokens)
+            elif(Parser.tokens.actual.Type == "MINUS"):
+                temp_value -= Parser.parseTerm(tokens)
+        return temp_value
+
+    @staticmethod
     def run(origin):
-        Parser.tokens = Tokenizer(origin)
-        return Parser.parseExpression(Parser.tokens)
-        # recebe origin e inicializa um objeto tokenizer e retorna o resultado de parseExpression
-        # Sera chamado pelo main()
+        Parser.tokens = Tokenizer(PrePro.filter(origin))
+        final = Parser.parseExpression(Parser.tokens)
+        if(Parser.tokens.actual.Type == "EOF"):
+            return final
+        else:
+            raise Exception("Erro", "Input is wrong at position %d (%s) " % (Parser.tokens.position-1,Parser.tokens.origin[Parser.tokens.position-1]))
+
+
+class PrePro:
+
+    @staticmethod
+    def filter(origin):
+        pattern = re.compile("/\*.*?\*/", re.DOTALL | re.MULTILINE)
+        line = pattern.sub("", origin)
+        return line
 
 
 if __name__ == '__main__':
