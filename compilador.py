@@ -44,11 +44,18 @@ class Tokenizer:
             elif(self.origin[self.position-1] == "/"):
                 self.actual.Type = "DIV"
                 self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "("):
+                self.actual.Type = "OPENPAR"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == ")"):
+                self.actual.Type = "CLOSEPAR"
+                self.actual.value = (self.origin[self.position-1])
             elif(self.origin[self.position-1] == " "):
                 goAgain = True
             else:
                 raise Exception(
                     "ERRO", "Operando '%s' não reconhecido na posição %d" % (self.origin[self.position-1], self.position-1))
+            
 
 
 class Parser:
@@ -56,35 +63,38 @@ class Parser:
     tokens = None
 
     @staticmethod
-    def parseTerm(tokens):
+    def parseFactor(tokens):
         Parser.tokens.selectNext()
         try:
             if(Parser.tokens.actual.Type == "INT"):
-                endValue = Parser.tokens.actual.value
+                temp = Parser.tokens.actual.value 
                 Parser.tokens.selectNext()
-                while (Parser.tokens.actual.Type == "DIV" or Parser.tokens.actual.Type == "MULT"):
-                    if(Parser.tokens.actual.Type == "MULT"):
-                        Parser.tokens.selectNext()
-                        if(Parser.tokens.actual.Type == "INT"):
-                            endValue *= Parser.tokens.actual.value
-                        else:
-                            raise Exception("ERRO", "Sintaxe incorreta")
-                    elif(Parser.tokens.actual.Type == "DIV"):
-                        Parser.tokens.selectNext()
-                        if(Parser.tokens.actual.Type == "INT"):
-                            endValue //= Parser.tokens.actual.value
-                        else:
-                            raise Exception("Erro", "Sintaxe incorreta")
-
+                return temp
+            elif (Parser.tokens.actual.Type in ["MINUS", "PLUS"]):
+                if(Parser.tokens.actual.Type =="MINUS"):
+                    return -Parser.parseFactor(tokens)
+                else:
+                    return Parser.parseFactor(tokens)
+            elif (Parser.tokens.actual.Type == "OPENPAR"):
+                temp = Parser.parseExpression(tokens)
+                if(Parser.tokens.actual.Type == "CLOSEPAR"):
                     Parser.tokens.selectNext()
-
-                return endValue
-
-            else:
-                raise Exception("Error", "")
-                exit(0)
+                    return temp
+            raise Exception ("ERROR IN FACTOR")
         except Exception as e:
             print(e)
+
+
+
+    @staticmethod
+    def parseTerm(tokens):
+        temp_value = Parser.parseFactor(tokens)
+        while(Parser.tokens.actual.Type == "MULT" or Parser.tokens.actual.Type == "DIV"):
+            if(Parser.tokens.actual.Type == "MULT"):
+                temp_value *= Parser.parseFactor(tokens)
+            elif(Parser.tokens.actual.Type == "DIV"):
+                temp_value //= Parser.parseFactor(tokens)
+        return temp_value
 
     @staticmethod
     def parseExpression(tokens):
