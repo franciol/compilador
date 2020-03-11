@@ -1,5 +1,10 @@
 # compilador
 
+Diagrama Sintático
+
+![alt text](DiagramaSintatico.png)
+
+
 EBNF
 
 
