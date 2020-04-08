@@ -7,11 +7,24 @@ Diagrama Sintático
 
 EBNF
 
+> BLOCK = "{", { COMMAND }, "}" ;
 
-> digit = "0" | "1" | "2" | "3"  | "4" | "5" | "6" | "7" | "8" | "9" ;
+> COMMAND = ( λ | ASSIGNMENT | PRINT), ";" | BLOCK ;
 
->EXPRESSION = TERM, { ("+" | "-"), TERM } ;
+> ASSIGNMENT = IDENTIFIER, "=", EXPRESSION, ";" ;
 
->TERM = FACTOR, { ("*" | "/"), FACTOR } ;
+> PRINT = "echo", EXPRESSION, ";" ;
 
->FACTOR = ("+" | "-") FACTOR | "(" EXPRESSION ")" | digit ;
+> EXPRESSION = TERM, { ("+" | "-"), TERM } ;
+
+> TERM = FACTOR, { ("*" | "/"), FACTOR } ;
+
+> FACTOR = (("+" | "-"), FACTOR) | NUMBER | "(", EXPRESSION, ")" | IDENTIFIER ;
+
+> IDENTIFIER = "$", LETTER, { LETTER | DIGIT | "_" } ;
+
+> NUMBER = DIGIT, { DIGIT } ;
+
+> LETTER = ( a | ... | z | A | ... | Z ) ;
+
+> DIGIT = ( 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 ) ;
