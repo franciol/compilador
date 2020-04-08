@@ -3,6 +3,18 @@ import re
 from abc import abstractmethod, ABC
 
 
+list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else', 'while']
+
+
+class SymbolTable():
+    mainDict = {}
+    def setter(self, chave, valor):
+        self.mainDict[chave] = valor
+
+    def getter(self, chave):
+        return self.mainDict[chave]
+
+
 class Node(ABC):
     value = None
     children = None
@@ -51,9 +63,44 @@ class IntVal(Node):
 
 
 class NoOp(Node):
+    def __init__(self):
+        pass
     def Evaluate(self):
         pass
 
+
+class Commands(Node):
+    def __init__(self):
+        self.children = []
+        self.value = None
+
+    def Evaluate(self):
+        for i in self.children:
+            i.Evaluate()
+
+class IdentifierOp(Node):
+    def __init__(self,value):
+        self.children = None
+        self.value = value
+
+    def Evaluate(self):
+        return SymbolTable().getter(self.value)
+
+class AssingnmentOp(Node):
+    def __init__(self, IDENTIFIER):
+        self.children = [IDENTIFIER]
+        self.value = None
+
+    def Evaluate(self):
+        SymbolTable().setter(self.children[0], self.children[1].Evaluate())
+
+class EchoOp(Node):
+    def __init__(self, Expression):
+        self.children = Expression
+        self.value = None
+
+    def Evaluate(self):
+        print(self.children.Evaluate())
 
 class Token:
     Type = None
@@ -72,7 +119,6 @@ class Tokenizer:
         while goAgain:
             goAgain = False
             self.position += 1
-
             if(self.position > len(self.origin)):
                 self.actual.Type = "EOF"
                 self.actual.value = ""
@@ -101,8 +147,35 @@ class Tokenizer:
             elif(self.origin[self.position-1] == ")"):
                 self.actual.Type = "CLOSEPAR"
                 self.actual.value = (self.origin[self.position-1])
-            elif(self.origin[self.position-1] == " "):
-                goAgain = True
+            elif(self.origin[self.position-1] == "{"):
+                self.actual.Type = "OPENBLOCK"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "}"):
+                self.actual.Type = "CLOSEBLOCK"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1:self.position+3] == "echo"):
+                self.actual.Type = "ECHO"
+                self.actual.value = (self.origin[self.position-1])
+                self.position += 3
+            elif(self.origin[self.position-1] == "="):
+                self.actual.Type = "EQUAL"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "$"):
+                
+                init = self.position-1
+                while ((self.origin[self.position] not in list_reserved) and (self.position+1 <= len(self.origin))):
+                    self.position += 1
+                end = self.position
+                if(self.origin[init+1:end] in list_reserved):
+                    raise Exception("Error, token reserved: %s" % self.origin[init+1:end])
+                elif(not re.match(r'[$]+[A-Za-z]+[A-Za-z0-9_]*$',self.origin[init:end])):
+                    raise Exception("Error, token does not follow the rules of var type. (%s) " % (self.origin[init+1:end]))
+                self.actual.value = (self.origin[init:end])
+                self.actual.Type = "IDENTIFIER"
+            elif(self.origin[self.position-1] == ";"):
+                self.actual.Type = "ENDLINE"
+                self.actual.value = (self.origin[self.position-1])
+
             else:
                 raise Exception(
                     "ERRO", "Operando '%s' não reconhecido na posição %d" % (self.origin[self.position-1], self.position-1))
@@ -116,7 +189,12 @@ class Parser:
     def parseFactor(tokens):
         Parser.tokens.selectNext()
         try:
-            if(Parser.tokens.actual.Type == "INT"):
+            if(Parser.tokens.actual.Type == "IDENTIFIER"):
+                val = IdentifierOp(Parser.tokens.actual.value)
+                Parser.tokens.selectNext()
+                return val
+
+            elif(Parser.tokens.actual.Type == "INT"):
                 val = IntVal(Parser.tokens.actual.value)
                 Parser.tokens.selectNext()
                 return val
@@ -129,18 +207,23 @@ class Parser:
                     un = UnOp("+")
                     un.children = Parser.parseFactor(tokens)
                     return un
-
-
+            
             elif (Parser.tokens.actual.Type == "OPENPAR"):
                 temp = Parser.parseExpression(tokens)
                 if(Parser.tokens.actual.Type == "CLOSEPAR"):
                     Parser.tokens.selectNext()
                     return temp
 
+            elif (Parser.tokens.actual.Type == "OPENBLOCK"):
+
+                temp = Parser.parseExpression(tokens)
+                if(Parser.tokens.actual.Type == "CLOSEBLOCK"):
+                    Parser.tokens.selectNext()
+                    return temp
+
             raise Exception("ERROR IN FACTOR")
         except Exception as e:
             print(e)
-
 
     @staticmethod
     def parseTerm(tokens):
@@ -175,9 +258,51 @@ class Parser:
         return temp_value
 
     @staticmethod
+    def parseCommand(tokens):
+        if(Parser.tokens.actual.Type == "ENDLINE"):
+            Parser.tokens.selectNext()
+            return NoOp()
+        elif(Parser.tokens.actual.Type == "IDENTIFIER"):
+            temp = AssingnmentOp(Parser.tokens.actual.value)
+            Parser.tokens.selectNext()
+            if(Parser.tokens.actual.Type != "EQUAL"):
+                raise Exception("Error, equal not found after Assignment")
+            temp.children.append(Parser.parseExpression(tokens))            
+            if(Parser.tokens.actual.Type == "ENDLINE"):
+                Parser.tokens.selectNext()
+            else:
+                raise Exception("Missing ';' after IDENTIFIER")
+            return temp
+        elif(Parser.tokens.actual.Type == "ECHO"):
+            ecc = EchoOp(Parser.parseExpression(tokens))
+            if(Parser.tokens.actual.Type == "ENDLINE"):
+                Parser.tokens.selectNext()
+            else:
+                raise Exception("Missing ';' after IDENTIFIER")
+            return ecc
+        else:
+            #Parser.tokens.selectNext()
+            return Parser.parseBlock(tokens)
+
+    @staticmethod
+    def parseBlock(tokens):
+        commands = Commands()
+        if (Parser.tokens.actual.Type == "OPENBLOCK"):
+            Parser.tokens.selectNext()
+            while(Parser.tokens.actual.Type != "CLOSEBLOCK"):
+                temp = Parser.parseCommand(tokens)
+                commands.children.append(temp)
+            Parser.tokens.selectNext()
+            return commands
+
+        raise Exception(
+            "Error on ParseBlock, failed to open/close block properly.")
+
+    @staticmethod
     def run(origin):
         Parser.tokens = Tokenizer(PrePro.filter(origin))
-        final = Parser.parseExpression(Parser.tokens)
+        Parser.tokens.selectNext()
+        final = Parser.parseBlock(Parser.tokens)
         if(Parser.tokens.actual.Type == "EOF"):
             return final
         else:
@@ -198,11 +323,11 @@ if __name__ == '__main__':
     file_php = (sys.argv[1])
     if(".php" in file_php):
         with open(file_php) as fp:
-            lines = fp.readlines()
-            for line in lines:
-                if('\n' in line):
-                    line = line.replace('\n','')
-                value = Parser.run(line)
-                print(value.Evaluate())
+            lines = fp.read()
+            line = lines.replace('\n', '')
+            line = line.replace(' ', '')
+            value = Parser.run(line)
+            value.Evaluate()
+
     else:
-        raise Exception("Type error: %s is not a .php file" % (file_php))
+        raise Exception("Type error: %s is not a '.php' file" % (file_php))
