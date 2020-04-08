@@ -153,7 +153,7 @@ class Tokenizer:
             elif(self.origin[self.position-1] == "}"):
                 self.actual.Type = "CLOSEBLOCK"
                 self.actual.value = (self.origin[self.position-1])
-            elif(self.origin[self.position-1:self.position+3] == "echo"):
+            elif(str.lower(self.origin[self.position-1:self.position+3]) == "echo"):
                 self.actual.Type = "ECHO"
                 self.actual.value = (self.origin[self.position-1])
                 self.position += 3
