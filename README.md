@@ -9,17 +9,23 @@ EBNF
 
 > BLOCK = "{", { COMMAND }, "}" ;
 
-> COMMAND = ( λ | ASSIGNMENT | PRINT), ";" | BLOCK ;
+> COMMAND = ( λ | ASSIGNMENT | PRINT ), ";" | BLOCK | LOOP | CONDITIONAL ;
 
-> ASSIGNMENT = IDENTIFIER, "=", EXPRESSION, ";" ;
+> ASSIGNMENT = IDENTIFIER, "=", RELEXPR, ";" ;
 
-> PRINT = "echo", EXPRESSION, ";" ;
+> PRINT = "echo", RELEXPR, ";" ;
 
-> EXPRESSION = TERM, { ("+" | "-"), TERM } ;
+> LOOP = "while" , "(" , RELEXPR , ")" , COMMAND ;
 
-> TERM = FACTOR, { ("*" | "/"), FACTOR } ;
+> CONDITIONAL = "if" , "(", RELEXPR , ")" , COMMAND , λ | ("else" , COMMAND ) 
 
-> FACTOR = (("+" | "-"), FACTOR) | NUMBER | "(", EXPRESSION, ")" | IDENTIFIER ;
+> RELEXPR = EXPRESSION, { ("==" | ">" | "<" ) , EXPRESSION} ;
+
+> EXPRESSION = TERM, { ("+" | "-" | "or" ), TERM } ;
+
+> TERM = FACTOR, { ("*" | "/" | "and" ), FACTOR } ;
+
+> FACTOR = (("+" | "-" | "!" ), FACTOR) | NUMBER | "(", RELEXPR, ")" | IDENTIFIER  | "readline()";
 
 > IDENTIFIER = "$", LETTER, { LETTER | DIGIT | "_" } ;
 
