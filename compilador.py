@@ -3,8 +3,8 @@ import re
 from abc import abstractmethod, ABC
 
 
-list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else',
-                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false']
+list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else', ' ',
+                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false', "."]
 
 
 class SymbolTable():
@@ -34,18 +34,21 @@ class BinOp(Node):
     def Evaluate(self):
         child1 = self.children[0].Evaluate()
         child2 = self.children[1].Evaluate()
+        if(self.value == "."):
+            return str(child1[0])+str(child2[0]), "STR"
+
         if((child1[1] in ['BOOL', 'INT']) and (child1[1] in ['BOOL', 'INT'])):
             if(self.value in ['+', '-', '/', '*']):
                 if(child1[1] == "BOOL"):
                     if(child1[0]):
-                        child1[0] = 1
+                        child1 = 1, "INT"
                     else:
-                        child1 = 0
+                        child1 = 0, "INT"
                 if(child2[1] == "BOOL"):
                     if(child2[0]):
-                        child2[0] = 1
+                        child2 = 1, "INT"
                     else:
-                        child2 = 0
+                        child2 = 0, "INT"
 
                 if(self.value == "+"):
                     return child1[0]+child2[0], "INT"
@@ -103,6 +106,16 @@ class BoolVal(Node):
 
     def Evaluate(self):
         return self.value, "BOOL"
+
+
+class StringVal(Node):
+    def __init__(self, value):
+        self.children = None
+        self.value = value
+
+    def Evaluate(self):
+        return self.value, "STR"
+
 
 
 class NoOp(Node):
@@ -215,6 +228,8 @@ class Tokenizer:
             goAgain = False
 
             self.position += 1
+            while((self.origin[self.position-1:self.position] == ' ') and (self.position < (len(self.origin)))):
+                self.position += 1
 
             if(self.position > len(self.origin)):
                 self.actual.Type = "EOF"
@@ -250,8 +265,19 @@ class Tokenizer:
                 end = self.position
                 self.actual.Type = "INT"
                 self.actual.value = int(self.origin[init:end])
+            elif(self.origin[self.position-1] == '"'):
+                init = self.position-1
+                while (self.origin[self.position+1] != '"'):
+                    self.position += 1
+                end = self.position + 1
+                self.actual.Type = "STR"
+                self.actual.value = str(self.origin[init+1:end])
+                self.position += 2
             elif(self.origin[self.position-1] == "+"):
                 self.actual.Type = "PLUS"
+                self.actual.value = (self.origin[self.position-1])
+            elif(self.origin[self.position-1] == "."):
+                self.actual.Type = "CONCAT"
                 self.actual.value = (self.origin[self.position-1])
             elif(self.origin[self.position-1] == "-"):
                 self.actual.Type = "MINUS"
@@ -361,6 +387,11 @@ class Parser:
                 Parser.tokens.selectNext()
                 return val
 
+            elif(Parser.tokens.actual.Type == "STR"):
+                val = StringVal(Parser.tokens.actual.value)
+                Parser.tokens.selectNext()
+                return val
+
             elif(Parser.tokens.actual.Type == "BOOL"):
                 val = BoolVal(Parser.tokens.actual.value)
                 Parser.tokens.selectNext()
@@ -423,7 +454,7 @@ class Parser:
     @staticmethod
     def parseExpression(tokens):
         temp_value = Parser.parseTerm(tokens)
-        if(Parser.tokens.actual.Type not in ["EOF"] and Parser.tokens.actual.Type in ["PLUS", "MINUS", "OR"]):
+        if(Parser.tokens.actual.Type not in ["EOF"] and Parser.tokens.actual.Type in ["PLUS", "MINUS", "OR", "CONCAT"]):
             if(Parser.tokens.actual.Type == "PLUS"):
                 main = BinOp("+")
                 main.children.append(temp_value)
@@ -435,6 +466,11 @@ class Parser:
             elif(Parser.tokens.actual.Type == "OR"):
                 main = BinOp("or")
                 main.children.append(temp_value)
+
+            elif(Parser.tokens.actual.Type == "CONCAT"):
+                main = BinOp(".")
+                main.children.append(temp_value)
+
             main.children.append(Parser.parseTerm(tokens))
             return main
         return temp_value
@@ -571,7 +607,7 @@ if __name__ == '__main__':
         with open(file_php) as fp:
             lines = fp.read()
             line = lines.replace('\n', '')
-            line = line.replace(' ', '')
+            #line = line.replace(' ', '')
             value = Parser.run(line)
             value.Evaluate()
 
