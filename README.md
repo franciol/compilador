@@ -4,33 +4,38 @@ Diagrama Sintático
 
 ![alt text](DiagramaSintatico.png)
 
-
 EBNF
 
-> BLOCK = "{", { COMMAND }, "}" ;
+> PROGRAM '<?php , { COMMAND } , '?>' ;
 
-> COMMAND = ( λ | ASSIGNMENT | PRINT ), ";" | BLOCK | LOOP | CONDITIONAL ;
+> BLOCK = '{', { COMMAND }, '}' ;
 
-> ASSIGNMENT = IDENTIFIER, "=", RELEXPR, ";" ;
+> COMMAND = ( λ | ASSIGNMENT | PRINT ), ';' | BLOCK | LOOP | CONDITIONAL ;
 
-> PRINT = "echo", RELEXPR, ";" ;
+> ASSIGNMENT = IDENTIFIER, '=', RELEXPR, ';' ;
 
-> LOOP = "while" , "(" , RELEXPR , ")" , COMMAND ;
+> PRINT = 'echo', RELEXPR, ';' ;
 
-> CONDITIONAL = "if" , "(", RELEXPR , ")" , COMMAND , λ | ("else" , COMMAND ) 
+> LOOP = 'while' , '(' , RELEXPR , ')' , COMMAND ;
 
-> RELEXPR = EXPRESSION, { ("==" | ">" | "<" ) , EXPRESSION} ;
+> CONDITIONAL = 'if' , '(', RELEXPR , ')' , COMMAND , λ | ('else' , COMMAND )
 
-> EXPRESSION = TERM, { ("+" | "-" | "or" ), TERM } ;
+> RELEXPR = EXPRESSION, { ('==' | '>' | '<' ) , EXPRESSION} ;
 
-> TERM = FACTOR, { ("*" | "/" | "and" ), FACTOR } ;
+> EXPRESSION = TERM, { ('+' | '-' | 'or' | '.'), TERM } ;
 
-> FACTOR = (("+" | "-" | "!" ), FACTOR) | NUMBER | "(", RELEXPR, ")" | IDENTIFIER  | "readline()";
+> TERM = FACTOR, { ('\*' | '/' | 'and' ), FACTOR } ;
 
-> IDENTIFIER = "$", LETTER, { LETTER | DIGIT | "_" } ;
+> FACTOR = (('+' | '-' | '!' ), FACTOR) | NUMBER | '(', RELEXPR, ')' | IDENTIFIER | 'readline()' | STRING;
+
+> IDENTIFIER = '\$', LETTER, { LETTER | DIGIT | '\_' } ;
 
 > NUMBER = DIGIT, { DIGIT } ;
+
+> STRING = '"', ((' ' | LETTER | DIGIT | '_' ) , { ( ' ' | LETTER | DIGIT | '_') });
 
 > LETTER = ( a | ... | z | A | ... | Z ) ;
 
 > DIGIT = ( 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 ) ;
+
+> BOOL = ( True | False) ;
