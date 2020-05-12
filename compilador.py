@@ -4,14 +4,14 @@ from abc import abstractmethod, ABC
 
 
 list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else',
-                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')']
+                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false']
 
 
 class SymbolTable():
     mainDict = {}
 
-    def setter(self, chave, valor):
-        self.mainDict[chave] = valor
+    def setter(self, chave, valor, tipo):
+        self.mainDict[chave] = valor, tipo
 
     def getter(self, chave):
         return self.mainDict[chave]
@@ -32,19 +32,40 @@ class BinOp(Node):
         self.value = value
 
     def Evaluate(self):
-        if(self.value == "+"):
-            return self.children[0].Evaluate() + self.children[1].Evaluate()
-        elif(self.value == "-"):
-            return (self.children[0].Evaluate() - self.children[1].Evaluate())
-        elif(self.value == "*"):
-            return self.children[0].Evaluate() * self.children[1].Evaluate()
-        elif(self.value == "/"):
-            return self.children[0].Evaluate() // self.children[1].Evaluate()
-        elif(self.value == "and"):
-            return self.children[0].Evaluate() and self.children[1].Evaluate()
-        elif(self.value == "or"):
-            return self.children[0].Evaluate() or self.children[1].Evaluate()
-        
+        child1 = self.children[0].Evaluate()
+        child2 = self.children[1].Evaluate()
+        if((child1[1] in ['BOOL', 'INT']) and (child1[1] in ['BOOL', 'INT'])):
+            if(self.value in ['+', '-', '/', '*']):
+                if(child1[1] == "BOOL"):
+                    if(child1[0]):
+                        child1[0] = 1
+                    else:
+                        child1 = 0
+                if(child2[1] == "BOOL"):
+                    if(child2[0]):
+                        child2[0] = 1
+                    else:
+                        child2 = 0
+
+                if(self.value == "+"):
+                    return child1[0]+child2[0], "INT"
+                elif(self.value == "-"):
+                    return child1[0]-child2[0], "INT"
+                elif(self.value == "*"):
+                    return child1[0]*child2[0], "INT"
+                elif(self.value == "/"):
+                    return child1[0]//child2[0], "INT"
+            elif(self.value in ["and", "or"]):
+                if(child1[1] == "INT"):
+                    child1 = (child1[0] >= 1), "BOOL"
+                if(child2[1] == "INT"):
+                    child2 = (child2[0] >= 1), "BOOL"
+
+                if(self.value == "and"):
+                    return (child1 and child2), "BOOL"
+                elif(self.value == "or"):
+                    return (child1 or child2), "BOOL"
+
         raise Exception("Error in BinOp: Value unexpected")
 
 
@@ -53,12 +74,16 @@ class UnOp(Node):
         self.value = value
 
     def Evaluate(self):
-        if(self.value == "-"):
-            return -self.children.Evaluate()
-        elif(self.value == "+"):
-            return self.children.Evaluate()
-        elif(self.value == "!"):
-            return not self.children.Evaluate()
+        if(self.children.Evaluate()[1] == "INT"):
+            if(self.value == "-"):
+                return -self.children.Evaluate()[0], "INT"
+            elif(self.value == "+"):
+                return self.children.Evaluate()
+            if(self.value == "!"):
+                return not self.children.Evaluate()[0], "BOOL"
+        elif(self.children.Evaluate()[1] == "BOOL"):
+            if(self.value == "!"):
+                return not self.children.Evaluate()[0], "BOOL"
         raise Exception("Error in UnOp: Value unexpected")
 
 
@@ -68,7 +93,16 @@ class IntVal(Node):
         self.value = value
 
     def Evaluate(self):
-        return self.value
+        return self.value, "INT"
+
+
+class BoolVal(Node):
+    def __init__(self, value):
+        self.children = None
+        self.value = value
+
+    def Evaluate(self):
+        return self.value, "BOOL"
 
 
 class NoOp(Node):
@@ -103,7 +137,7 @@ class ReadlineOp(Node):
         self.children = None
 
     def Evaluate(self):
-        return int(input())
+        return int(input()), "INT"
 
 
 class AssingnmentOp(Node):
@@ -112,7 +146,8 @@ class AssingnmentOp(Node):
         self.value = None
 
     def Evaluate(self):
-        SymbolTable().setter(self.children[0], self.children[1].Evaluate())
+        SymbolTable().setter(self.children[0], self.children[1].Evaluate()[
+            0], self.children[1].Evaluate()[1])
 
 
 class EchoOp(Node):
@@ -121,7 +156,7 @@ class EchoOp(Node):
         self.value = None
 
     def Evaluate(self):
-        print(self.children.Evaluate())
+        print(self.children.Evaluate()[0])
 
 
 class WhileOp(Node):
@@ -130,7 +165,7 @@ class WhileOp(Node):
         self.children = [expr]
 
     def Evaluate(self):
-        while(self.children[0].Evaluate()):
+        while(self.children[0].Evaluate()[0] >= 1):
             self.children[1].Evaluate()
 
 
@@ -140,7 +175,7 @@ class IfOp(Node):
         self.children = [child1]
 
     def Evaluate(self):
-        if(self.children[0].Evaluate()):
+        if(self.children[0].Evaluate()[0]):
             self.children[1].Evaluate()
         elif(len(self.children) == 3):
             self.children[2].Evaluate()
@@ -152,12 +187,14 @@ class RelaxOp(Node):
         self.children = [first]
 
     def Evaluate(self):
+        child1 = self.children[0].Evaluate()
+        child2 = self.children[1].Evaluate()
         if(self.value == "=="):
-            return (self.children[0].Evaluate() == self.children[1].Evaluate())
+            return (self.children[0].Evaluate()[0] == self.children[1].Evaluate()[0]), "BOOL"
         elif(self.value == ">"):
-            return (self.children[0].Evaluate() > self.children[1].Evaluate())
+            return (child1[0] > child2[0]), "BOOL"
         elif(self.value == "<"):
-            return (self.children[0].Evaluate() < self.children[1].Evaluate())
+            return (child1[0] < child2[0]), "BOOL"
 
 
 class Token:
@@ -176,10 +213,36 @@ class Tokenizer:
         goAgain = True
         while goAgain:
             goAgain = False
+
             self.position += 1
+
             if(self.position > len(self.origin)):
                 self.actual.Type = "EOF"
                 self.actual.value = ""
+
+            elif(self.origin[self.position-1:self.position+4] == "<?php"):
+                self.actual.Type = "PROGOPEN"
+                self.actual.value = self.origin[self.position -
+                                                1:self.position+4]
+                self.position += 4
+            elif(self.origin[self.position-1:self.position+1] == "?>"):
+                self.actual.Type = "PROGCLOSE"
+                self.actual.value = self.origin[self.position -
+                                                1:self.position+1]
+                self.position += 1
+
+            elif((self.origin[self.position-1:self.position+3]).lower() == "true"):
+                self.actual.Type = "BOOL"
+                self.actual.value = self.origin[self.position -
+                                                1:self.position+3]
+                self.position += 3
+
+            elif((self.origin[self.position-1:self.position+4]).lower() == "false"):
+                self.actual.Type = "BOOL"
+                self.actual.value = self.origin[self.position -
+                                                1:self.position+4]
+                self.position += 4
+
             elif(self.origin[self.position-1].isdigit()):
                 init = self.position-1
                 while (self.origin[init:self.position+1].isdigit() and (self.position+1 <= len(self.origin))):
@@ -242,7 +305,8 @@ class Tokenizer:
                 self.position += 7
             elif(str.lower(self.origin[self.position-1:self.position+1]) == "=="):
                 self.actual.Type = "EQUALCMPR"
-                self.actual.value = (self.origin[self.position-1:self.position+1])
+                self.actual.value = (
+                    self.origin[self.position-1:self.position+1])
                 self.position += 1
             elif(str.lower(self.origin[self.position-1:self.position+1]) == "or"):
                 self.actual.Type = "OR"
@@ -259,7 +323,7 @@ class Tokenizer:
 
                 init = self.position-1
                 while ((self.origin[self.position] not in list_reserved) and (self.position+1 <= len(self.origin))):
-                    
+
                     self.position += 1
                 end = self.position
                 if(self.origin[init+1:end] in list_reserved):
@@ -294,6 +358,11 @@ class Parser:
 
             elif(Parser.tokens.actual.Type == "INT"):
                 val = IntVal(Parser.tokens.actual.value)
+                Parser.tokens.selectNext()
+                return val
+
+            elif(Parser.tokens.actual.Type == "BOOL"):
+                val = BoolVal(Parser.tokens.actual.value)
                 Parser.tokens.selectNext()
                 return val
 
@@ -375,15 +444,14 @@ class Parser:
         temp_value = Parser.parseExpression(tokens)
         if(Parser.tokens.actual.Type not in ["EOF"] and Parser.tokens.actual.Type in ["EQUALCMPR", "MORETHAN", "LESSTHAN"]):
             if(Parser.tokens.actual.Type == "EQUALCMPR"):
-                main = RelaxOp("==",temp_value)
-                
+                main = RelaxOp("==", temp_value)
 
             elif(Parser.tokens.actual.Type == "MORETHAN"):
-                main = RelaxOp(">",temp_value)
-                
+                main = RelaxOp(">", temp_value)
+
             elif(Parser.tokens.actual.Type == "LESSTHAN"):
-                main = RelaxOp("<",temp_value)
-                
+                main = RelaxOp("<", temp_value)
+
             main.children.append(Parser.parseExpression(tokens))
             return main
         return temp_value
@@ -426,8 +494,7 @@ class Parser:
                                 (Parser.tokens.actual.value))
             Parser.tokens.selectNext()
             whil.children.append(Parser.parseCommand(tokens))
-            
-            
+
             return whil
 
         elif(Parser.tokens.actual.Type == "IF"):
@@ -439,7 +506,7 @@ class Parser:
                 raise Exception("Error, ')' expected  (%s)" %
                                 (Parser.tokens.actual.value))
 
-            Parser.tokens.selectNext()                             
+            Parser.tokens.selectNext()
             iff.children.append(Parser.parseCommand(tokens))
             if(Parser.tokens.actual.Type == "ELSE"):
                 Parser.tokens.selectNext()
@@ -464,10 +531,24 @@ class Parser:
             "Error on ParseBlock, failed to open/close block properly.")
 
     @staticmethod
+    def parseProgram(tokens):
+        commands = Commands()
+        if (Parser.tokens.actual.Type == "PROGOPEN"):
+            Parser.tokens.selectNext()
+            temp = Parser.parseCommand(tokens)
+            commands.children.append(temp)
+            while(Parser.tokens.actual.Type != "PROGCLOSE"):
+                temp = Parser.parseCommand(tokens)
+                commands.children.append(temp)
+            Parser.tokens.selectNext()
+            return commands
+        raise Exception("Error on program definition.")
+
+    @staticmethod
     def run(origin):
         Parser.tokens = Tokenizer(PrePro.filter(origin))
         Parser.tokens.selectNext()
-        final = Parser.parseBlock(Parser.tokens)
+        final = Parser.parseProgram(Parser.tokens)
         if(Parser.tokens.actual.Type == "EOF"):
             return final
         else:
