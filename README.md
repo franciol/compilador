@@ -6,7 +6,7 @@ Diagrama Sintático
 
 EBNF
 
-> PROGRAM '<?php , { COMMAND } , '?>' ;
+> PROGRAM = '<?php , { COMMAND } , '?>' ;
 
 > BLOCK = '{', { COMMAND }, '}' ;
 
