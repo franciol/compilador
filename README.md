@@ -26,7 +26,7 @@ EBNF
 
 > TERM = FACTOR, { ('\*' | '/' | 'and' ), FACTOR } ;
 
-> FACTOR = (('+' | '-' | '!' ), FACTOR) | NUMBER | '(', RELEXPR, ')' | IDENTIFIER | 'readline()' | STRING;
+> FACTOR = (('+' | '-' | '!' ), FACTOR) | NUMBER | '(', RELEXPR, ')' | IDENTIFIER | 'readline()' | STRING | BOOL;
 
 > IDENTIFIER = '\$', LETTER, { LETTER | DIGIT | '\_' } ;
 
