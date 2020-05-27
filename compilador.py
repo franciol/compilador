@@ -6,20 +6,126 @@ from abc import abstractmethod, ABC
 list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else', ' ',
                  'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false', "."]
 
+id_base = 0
+class ASM_JUNCT():
+    lista = ['; constantes',
+             'SYS_EXIT equ 1',
+             'SYS_READ equ 3',
+             'SYS_WRITE equ 4',
+             'STDIN equ 0',
+             'STDOUT equ 1',
+             'True equ 1',
+             'False equ 0',
+             'segment .data',
+             'segment .bss  ; variaveis',
+             'res RESB 1',
+
+             'section .text',
+             'global _start',
+
+             'print:  ; subrotina print',
+
+             'PUSH EBP ; guarda o base pointer',
+             'MOV EBP, ESP ; estabelece um novo base pointer',
+
+             'MOV EAX, [EBP+8] ; 1 argumento antes do RET e EBP',
+             'XOR ESI, ESI',
+
+             'print_dec: ; empilha todos os digitos',
+             'MOV EDX, 0',
+             'MOV EBX, 0x000A',
+             'DIV EBX',
+             "ADD EDX, '0'",
+             'PUSH EDX',
+             'INC ESI ; contador de digitos',
+             'CMP EAX, 0',
+             'JZ print_next ; quando acabar pula',
+             'JMP print_dec',
+
+
+             'print_next:',
+             'CMP ESI, 0',
+             'JZ print_exit; quando acabar de imprimir',
+             'DEC ESI',
+
+             'MOV EAX, SYS_WRITE',
+             'MOV EBX, STDOUT',
+
+             'POP ECX',
+             'MOV[res], ECX',
+             'MOV ECX, res',
+
+             'MOV EDX, 1',
+             'INT 0x80',
+             'JMP print_next',
+
+             'print_exit:',
+             'POP EBP',
+             'RET',
+
+             '; subrotinas if/while',
+             'binop_je:',
+             'JE binop_true',
+             'JMP binop_false',
+
+             'binop_jg:',
+             'JG binop_true',
+             'JMP binop_false',
+
+             'binop_jl:',
+             'JL binop_true',
+             'JMP binop_false',
+
+             'binop_false:',
+             'MOV EBX, False',
+             'JMP binop_exit',
+             'binop_true:',
+             'MOV EBX, True',
+             'binop_exit:',
+             'RET',
+
+             '_start:',
+
+             'PUSH EBP; guarda o base pointer',
+             'MOV EBP, ESP; estabelece um novo base pointer']
+
+    def add_lista(self, str):
+        self.lista.append(str)
+
+    def flush(self):
+        self.add_lista("POP EBP")
+        self.add_lista("MOV EAX, 1")
+        self.add_lista("INT 0x80")
+        return '\n'.join(self.lista)
+
 
 class SymbolTable():
     mainDict = {}
+    displacement = [4]
 
     def setter(self, chave, valor, tipo):
         self.mainDict[chave] = valor, tipo
 
     def getter(self, chave):
         return self.mainDict[chave]
+    
+    def exist(self,chave):
+        return (chave in self.mainDict)
+
+    def getDisplacement(self):
+        temp = self.displacement[0]
+        self.displacement[0] += 4
+        return temp
 
 
 class Node(ABC):
     value = None
     children = None
+    
+    def newId(self):
+        global id_base
+        id_base += 1
+        return id_base
 
     @abstractmethod
     def Evaluate(self):
@@ -32,62 +138,64 @@ class BinOp(Node):
         self.value = value
 
     def Evaluate(self):
-        child1 = self.children[0].Evaluate()
-        child2 = self.children[1].Evaluate()
-        if(self.value == "."):
-            return str(child1[0])+str(child2[0]), "STR"
+        # BIN OP
+        '''
+        EVALUATE child1
 
-        if((child1[1] in ['BOOL', 'INT']) and (child1[1] in ['BOOL', 'INT'])):
-            if(self.value in ['+', '-', '/', '*']):
-                if(child1[1] == "BOOL"):
-                    if(child1[0]):
-                        child1 = 1, "INT"
-                    else:
-                        child1 = 0, "INT"
-                if(child2[1] == "BOOL"):
-                    if(child2[0]):
-                        child2 = 1, "INT"
-                    else:
-                        child2 = 0, "INT"
+        PUSH EBX ; guarda na Pilha  o valor de child1
 
-                if(self.value == "+"):
-                    return child1[0]+child2[0], "INT"
-                elif(self.value == "-"):
-                    return child1[0]-child2[0], "INT"
-                elif(self.value == "*"):
-                    return child1[0]*child2[0], "INT"
-                elif(self.value == "/"):
-                    return child1[0]//child2[0], "INT"
-            elif(self.value in ["and", "or"]):
-                if(child1[1] == "INT"):
-                    child1 = (child1[0] >= 1), "BOOL"
-                if(child2[1] == "INT"):
-                    child2 = (child2[0] >= 1), "BOOL"
+        Evaluate child2
 
-                if(self.value == "and"):
-                    return (child1 and child2), "BOOL"
-                elif(self.value == "or"):
-                    return (child1 or child2), "BOOL"
+        POP EAX;
+        ADD EAX, EBX;
+        MOV EBX, EAX;
 
-        raise Exception("Error in BinOp: Value unexpected")
+        '''
+
+        self.children[0].Evaluate()
+        ASM_JUNCT().add_lista("PUSH EBX ;")
+        self.children[1].Evaluate()
+        ASM_JUNCT().add_lista("POP EAX ;")
+        if(self.value in ['+','-','/','*','and','or']):
+            if(self.value == '+'):
+                ASM_JUNCT().add_lista("ADD EAX, EBX ;")
+            elif(self.value == '-'):
+                ASM_JUNCT().add_lista("SUB EAX, EBX ;")
+            elif(self.value == '*'):
+                ASM_JUNCT().add_lista("IMUL EBX ;")
+            elif(self.value == '/'):
+                ASM_JUNCT().add_lista("IDIV EBX ;")
+            elif(self.value == 'and'):
+                ASM_JUNCT().add_lista("AND EAX, EBX ;")
+            elif(self.value == 'or'):
+                ASM_JUNCT().add_lista("OR EAX, EBX ;")
+            ASM_JUNCT().add_lista("MOV EBX, EAX ;")
+        else:
+            raise Exception("Error in BinOp: Value unexpected")
 
 
 class UnOp(Node):
     def __init__(self, value):
         self.value = value
+        self.ID = super().newId()
 
     def Evaluate(self):
-        if(self.children.Evaluate()[1] == "INT"):
-            if(self.value == "-"):
-                return -self.children.Evaluate()[0], "INT"
-            elif(self.value == "+"):
-                return self.children.Evaluate()
-            if(self.value == "!"):
-                return not self.children.Evaluate()[0], "BOOL"
-        elif(self.children.Evaluate()[1] == "BOOL"):
-            if(self.value == "!"):
-                return not self.children.Evaluate()[0], "BOOL"
-        raise Exception("Error in UnOp: Value unexpected")
+        if(self.value in ['-','+','!']):
+            self.children.Evaluate()
+            if(self.value == '-'):
+                ASM_JUNCT().add_lista("XOR EBX, 0xFFFFFFFF ; ")
+                ASM_JUNCT().add_lista("ADD EBX, 1 ; ")
+            elif(self.value == '!'):
+                jmp_point = 'UNOP_%d' % (self.ID)
+                ASM_JUNCT().add_lista("CMP EBX, 0 ;")
+                ASM_JUNCT().add_lista("JE %s ;" % jmp_point)
+                ASM_JUNCT().add_lista("MOV EBX, 1 ;")
+                ASM_JUNCT().add_lista("%s:" % jmp_point)
+                
+                
+
+        else:
+            raise Exception("Error in UnOp: Value unexpected")
 
 
 class IntVal(Node):
@@ -96,7 +204,9 @@ class IntVal(Node):
         self.value = value
 
     def Evaluate(self):
-        return self.value, "INT"
+        # MOV EBX, self.value\n;
+        ASM_JUNCT().add_lista("MOV EBX, %d ;"%(self.value))
+        # return self.value, "INT"
 
 
 class BoolVal(Node):
@@ -105,16 +215,9 @@ class BoolVal(Node):
         self.value = value
 
     def Evaluate(self):
-        return self.value, "BOOL"
+        ASM_JUNCT().add_lista("MOV EBX, %s ;"%(self.value))
+        #return self.value, "BOOL"
 
-
-class StringVal(Node):
-    def __init__(self, value):
-        self.children = None
-        self.value = value
-
-    def Evaluate(self):
-        return self.value, "STR"
 
 
 
@@ -142,15 +245,12 @@ class IdentifierOp(Node):
         self.value = value
 
     def Evaluate(self):
-        return SymbolTable().getter(self.value)
+        '''
 
+        '''
+        ASM_JUNCT().add_lista("MOV EBX, [EBP-%d] ; " % SymbolTable().getter(self.value)[0])
+                
 
-class ReadlineOp(Node):
-    def __init__(self):
-        self.children = None
-
-    def Evaluate(self):
-        return int(input()), "INT"
 
 
 class AssingnmentOp(Node):
@@ -159,8 +259,17 @@ class AssingnmentOp(Node):
         self.value = None
 
     def Evaluate(self):
-        SymbolTable().setter(self.children[0], self.children[1].Evaluate()[
-            0], self.children[1].Evaluate()[1])
+        temp_val = 0
+        if( SymbolTable().exist(self.children[0])):
+            temp_val = SymbolTable().getter(self.children[0])[0]
+        else:
+            ASM_JUNCT().add_lista("PUSH DWORD 0 ;")
+            temp_val = SymbolTable().getDisplacement()
+            SymbolTable().setter(self.children[0], temp_val, "INT")
+
+        self.children[1].Evaluate()
+        ASM_JUNCT().add_lista("MOV [EBP-%d], EBX ;" % temp_val)
+        
 
 
 class EchoOp(Node):
@@ -169,46 +278,77 @@ class EchoOp(Node):
         self.value = None
 
     def Evaluate(self):
-        print(self.children.Evaluate()[0])
+        self.children.Evaluate()
+        ASM_JUNCT().add_lista("PUSH EBX ;")
+        ASM_JUNCT().add_lista("CALL print ;")
+        ASM_JUNCT().add_lista("POP EBX ;")
 
 
 class WhileOp(Node):
     def __init__(self, expr):
         self.value = None
         self.children = [expr]
+        self.ID = super().newId()
 
     def Evaluate(self):
-        while(self.children[0].Evaluate()[0] >= 1):
-            self.children[1].Evaluate()
+        ASM_JUNCT().add_lista("LOOP_%d:" % self.ID)
+        self.children[0].Evaluate()
+        ASM_JUNCT().add_lista("CMP EBX, False ;")
+        ASM_JUNCT().add_lista("JE EXIT_%d ;" % (self.ID))
+        self.children[1].Evaluate()
+        ASM_JUNCT().add_lista("JMP LOOP_%d" % (self.ID))
+        ASM_JUNCT().add_lista("EXIT_%d:" % self.ID)
 
 
 class IfOp(Node):
     def __init__(self, child1):
         self.value = None
         self.children = [child1]
+        self.ID = super().newId()
 
     def Evaluate(self):
-        if(self.children[0].Evaluate()[0]):
+        if(len(self.children) == 3):
+            self.children[0].Evaluate()
+            ASM_JUNCT().add_lista("CMP EBX, False ;")
+            ASM_JUNCT().add_lista("JE ELSE_%d ;" % (self.ID))
             self.children[1].Evaluate()
-        elif(len(self.children) == 3):
+            ASM_JUNCT().add_lista("JMP EXIT_%d ;" % (self.ID))
+            ASM_JUNCT().add_lista("ELSE_%d:" % (self.ID))
             self.children[2].Evaluate()
+            ASM_JUNCT().add_lista("EXIT_%d:" % (self.ID))
+        else:
+            self.children[0].Evaluate()
+            ASM_JUNCT().add_lista("CMP EBX, False ;")
+            ASM_JUNCT().add_lista("JE EXIT_%d ;" % (self.ID))
+            self.children[1].Evaluate()
+            ASM_JUNCT().add_lista("EXIT_%d:" % (self.ID))
 
 
 class RelaxOp(Node):
     def __init__(self, value, first):
         self.value = value
         self.children = [first]
+        self.ID = super().newId()
 
     def Evaluate(self):
-        child1 = self.children[0].Evaluate()
-        child2 = self.children[1].Evaluate()
+        self.children[0].Evaluate()
+        ASM_JUNCT().add_lista("PUSH EBX ;")
+        self.children[1].Evaluate()
+        ASM_JUNCT().add_lista("POP EAX ;")
+        ASM_JUNCT().add_lista("CMP EBX, EAX ;")
+        
         if(self.value == "=="):
-            return (self.children[0].Evaluate()[0] == self.children[1].Evaluate()[0]), "BOOL"
+            ASM_JUNCT().add_lista("jne FALSE_%d" % self.ID)
         elif(self.value == ">"):
-            return (child1[0] > child2[0]), "BOOL"
+            ASM_JUNCT().add_lista("jge FALSE_%d" % self.ID)
         elif(self.value == "<"):
-            return (child1[0] < child2[0]), "BOOL"
-
+            ASM_JUNCT().add_lista("jle FALSE_%d" % self.ID)
+        ASM_JUNCT().add_lista("MOV EBX, True ; ")
+        ASM_JUNCT().add_lista("JMP END_%d " % self.ID)
+        ASM_JUNCT().add_lista("FALSE_%d:" % self.ID)
+        ASM_JUNCT().add_lista("MOV EBX, False ; ")
+        ASM_JUNCT().add_lista("END_%d:" % self.ID)
+        
 
 class Token:
     Type = None
@@ -228,50 +368,50 @@ class Tokenizer:
             goAgain = False
 
             self.position += 1
-            while((self.origin[self.position-1:self.position] == ' ') and (self.position < (len(self.origin)))):
+            while((self.origin[self.position-1: self.position] == ' ') and (self.position < (len(self.origin)))):
                 self.position += 1
 
             if(self.position > len(self.origin)):
                 self.actual.Type = "EOF"
                 self.actual.value = ""
 
-            elif(self.origin[self.position-1:self.position+4] == "<?php"):
+            elif(self.origin[self.position-1: self.position+4] == "<?php"):
                 self.actual.Type = "PROGOPEN"
                 self.actual.value = self.origin[self.position -
-                                                1:self.position+4]
+                                                1: self.position+4]
                 self.position += 4
-            elif(self.origin[self.position-1:self.position+1] == "?>"):
+            elif(self.origin[self.position-1: self.position+1] == "?>"):
                 self.actual.Type = "PROGCLOSE"
                 self.actual.value = self.origin[self.position -
-                                                1:self.position+1]
+                                                1: self.position+1]
                 self.position += 1
 
-            elif((self.origin[self.position-1:self.position+3]).lower() == "true"):
+            elif((self.origin[self.position-1: self.position+3]).lower() == "true"):
                 self.actual.Type = "BOOL"
                 self.actual.value = self.origin[self.position -
-                                                1:self.position+3]
+                                                1: self.position+3]
                 self.position += 3
 
-            elif((self.origin[self.position-1:self.position+4]).lower() == "false"):
+            elif((self.origin[self.position-1: self.position+4]).lower() == "false"):
                 self.actual.Type = "BOOL"
                 self.actual.value = self.origin[self.position -
-                                                1:self.position+4]
+                                                1: self.position+4]
                 self.position += 4
 
             elif(self.origin[self.position-1].isdigit()):
                 init = self.position-1
-                while (self.origin[init:self.position+1].isdigit() and (self.position+1 <= len(self.origin))):
+                while (self.origin[init: self.position+1].isdigit() and (self.position+1 <= len(self.origin))):
                     self.position += 1
                 end = self.position
                 self.actual.Type = "INT"
-                self.actual.value = int(self.origin[init:end])
+                self.actual.value = int(self.origin[init: end])
             elif(self.origin[self.position-1] == '"'):
                 init = self.position-1
                 while (self.origin[self.position+1] != '"'):
                     self.position += 1
                 end = self.position + 1
                 self.actual.Type = "STR"
-                self.actual.value = str(self.origin[init+1:end])
+                self.actual.value = str(self.origin[init+1: end])
                 self.position += 2
             elif(self.origin[self.position-1] == "+"):
                 self.actual.Type = "PLUS"
@@ -309,27 +449,27 @@ class Tokenizer:
             elif(self.origin[self.position-1] == "<"):
                 self.actual.Type = "LESSTHAN"
                 self.actual.value = (self.origin[self.position-1])
-            elif(str.lower(self.origin[self.position-1:self.position+3]) == "echo"):
+            elif(str.lower(self.origin[self.position-1: self.position+3]) == "echo"):
                 self.actual.Type = "ECHO"
                 self.actual.value = ("echo")
                 self.position += 3
-            elif(str.lower(self.origin[self.position-1:self.position+3]) == "else"):
+            elif(str.lower(self.origin[self.position-1: self.position+3]) == "else"):
                 self.actual.Type = "ELSE"
                 self.actual.value = (self.origin[self.position-1])
                 self.position += 3
-            elif(str.lower(self.origin[self.position-1:self.position+1]) == "if"):
+            elif(str.lower(self.origin[self.position-1: self.position+1]) == "if"):
                 self.actual.Type = "IF"
                 self.actual.value = (self.origin[self.position-1])
                 self.position += 1
-            elif(str.lower(self.origin[self.position-1:self.position+4]) == "while"):
+            elif(str.lower(self.origin[self.position-1: self.position+4]) == "while"):
                 self.actual.Type = "WHILE"
                 self.actual.value = (self.origin[self.position-1])
                 self.position += 4
-            elif(str.lower(self.origin[self.position-1:self.position+7]) == "readline"):
+            elif(str.lower(self.origin[self.position-1: self.position+7]) == "readline"):
                 self.actual.Type = "READLINE"
                 self.actual.value = (self.origin[self.position-1])
                 self.position += 7
-            elif(str.lower(self.origin[self.position-1:self.position+1]) == "=="):
+            elif(str.lower(self.origin[self.position-1: self.position+1]) == "=="):
                 self.actual.Type = "EQUALCMPR"
                 self.actual.value = (
                     self.origin[self.position-1:self.position+1])
@@ -387,10 +527,7 @@ class Parser:
                 Parser.tokens.selectNext()
                 return val
 
-            elif(Parser.tokens.actual.Type == "STR"):
-                val = StringVal(Parser.tokens.actual.value)
-                Parser.tokens.selectNext()
-                return val
+            
 
             elif(Parser.tokens.actual.Type == "BOOL"):
                 val = BoolVal(Parser.tokens.actual.value)
@@ -415,14 +552,7 @@ class Parser:
                     Parser.tokens.selectNext()
                     return temp
 
-            elif(Parser.tokens.actual.Type == "READLINE"):
-                un = ReadlineOp()
-                Parser.tokens.selectNext()
-                if(Parser.tokens.actual.Type == "OPENPAR"):
-                    Parser.tokens.selectNext()
-                    if(Parser.tokens.actual.Type == "CLOSEPAR"):
-                        Parser.tokens.selectNext()
-                        return un
+          
                 raise Exception("ERROR IN READLINE")
 
             raise Exception("ERROR IN FACTOR")
@@ -607,9 +737,9 @@ if __name__ == '__main__':
         with open(file_php) as fp:
             lines = fp.read()
             line = lines.replace('\n', '')
-            #line = line.replace(' ', '')
+            # line = line.replace(' ', '')
             value = Parser.run(line)
             value.Evaluate()
-
+        print(ASM_JUNCT().flush())
     else:
         raise Exception("Type error: %s is not a '.php' file" % (file_php))
