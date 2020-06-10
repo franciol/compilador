@@ -10,7 +10,7 @@ EBNF
 
 > BLOCK = '{', { COMMAND }, '}' ;
 
-> COMMAND = ( λ | ASSIGNMENT | PRINT ), ';' | BLOCK | LOOP | CONDITIONAL ;
+> COMMAND = ( λ | ASSIGNMENT | PRINT ), ';' | BLOCK | LOOP | CONDITIONAL | "function_call" | "return" | "function";
 
 > ASSIGNMENT = IDENTIFIER, '=', RELEXPR, ';' ;
 
@@ -26,7 +26,7 @@ EBNF
 
 > TERM = FACTOR, { ('\*' | '/' | 'and' ), FACTOR } ;
 
-> FACTOR = (('+' | '-' | '!' ), FACTOR) | NUMBER | '(', RELEXPR, ')' | IDENTIFIER | 'readline()' | STRING | BOOL;
+> FACTOR = (('+' | '-' | '!' ), FACTOR) | NUMBER | '(', RELEXPR, ')' | IDENTIFIER | 'readline()' | STRING | BOOL | FUNCTION_CALL ;
 
 > IDENTIFIER = '\$', LETTER, { LETTER | DIGIT | '\_' } ;
 
