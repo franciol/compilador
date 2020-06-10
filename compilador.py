@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 
 
 list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else', ' ',
-                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false', "."]
+                 'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false', ".", "return", "function", ","]
 
 
 class SymbolTable():
@@ -14,6 +14,27 @@ class SymbolTable():
         self.mainDict[chave] = valor, tipo
 
     def getter(self, chave):
+        return self.mainDict[chave]
+
+    def setall(self, dicionario_novo):
+        self.mainDict.clear()
+        self.mainDict.update(dicionario_novo)
+
+    def getall(self):
+        return self.mainDict.copy()
+
+
+class SymbolTableFunc():
+    mainDict = {}
+
+    def setter(self, chave, valor, tipo):
+        if(chave in self.mainDict):
+            raise Exception ("Can't declare same function twice")
+        self.mainDict[chave] = valor, tipo
+
+    def getter(self, chave):
+        if(chave not in self.mainDict):
+            raise Exception ("Function '%s' hasn't been declared" % chave)
         return self.mainDict[chave]
 
 
@@ -117,7 +138,6 @@ class StringVal(Node):
         return self.value, "STR"
 
 
-
 class NoOp(Node):
     def __init__(self):
         pass
@@ -161,6 +181,51 @@ class AssingnmentOp(Node):
     def Evaluate(self):
         SymbolTable().setter(self.children[0], self.children[1].Evaluate()[
             0], self.children[1].Evaluate()[1])
+
+
+class FuncDec(Node):
+    def __init__(self, nome, argumentos):
+        self.children = argumentos
+        self.value = nome
+
+    def Evaluate(self):
+        SymbolTableFunc().setter(self.value, self, "FUNCTION")
+
+
+class FuncCall(Node):
+    def __init__(self, nameFunc):
+        self.children = []
+        self.value = nameFunc
+
+    def Evaluate(self):
+
+        temp = SymbolTableFunc().getter(self.value)
+        dict_temp = SymbolTable().getall()
+        new_dict = {}
+        if(len(temp[0].children)-1 != len(self.children)):
+            raise Exception("Error on call function. Wrong number of inputs")
+
+        for i in range(len(self.children)):
+            new_dict[temp[0].children[i].value] = self.children[i].Evaluate()
+
+        SymbolTable().setall(new_dict.copy())
+
+        temp[0].children[-1].Evaluate()
+
+        if("aa9e668b18dd9838d42e4a1b62a79887" in SymbolTable().mainDict):
+            temp_ret = SymbolTable().getter("aa9e668b18dd9838d42e4a1b62a79887")
+            SymbolTable().setall(dict_temp)
+            return temp_ret
+        SymbolTable().setall(dict_temp)
+
+
+class ReturnOp(Node):
+    def __init__(self, children):
+        self.children = children
+        self.value = None
+
+    def Evaluate(self):
+        SymbolTable().setter("aa9e668b18dd9838d42e4a1b62a79887", self.children.Evaluate()[0],self.children.Evaluate()[1])
 
 
 class EchoOp(Node):
@@ -313,6 +378,30 @@ class Tokenizer:
                 self.actual.Type = "ECHO"
                 self.actual.value = ("echo")
                 self.position += 3
+            elif(str.lower(self.origin[self.position-1:self.position+7]) == "function"):
+                self.position += 8
+                init = self.position
+                while ((self.origin[self.position] not in list_reserved) and (self.position+1 <= len(self.origin))):
+                    self.position += 1
+                end = self.position
+
+                if(self.origin[init+1:end] in list_reserved):
+                    raise Exception("Error, token reserved: %s" %
+                                    self.origin[init+1:end])
+                elif(not re.match(r'[A-Za-z]+[A-Za-z0-9_]*$', self.origin[init:end])):
+                    raise Exception("Error, token does not follow the rules of function type. (%s) " % (
+                        self.origin[init:end]))
+                self.actual.value = (self.origin[init:end])
+                self.actual.Type = "FUNCTION"
+                #self.position += len(self.actual.value)-1
+
+            elif(str.lower(self.origin[self.position-1:self.position+5]) == "return"):
+                self.actual.Type = "RETURN"
+                self.actual.value = ("return")
+                self.position += 5
+            elif(self.origin[self.position-1] == ","):
+                self.actual.Type = "COMMA"
+                self.actual.value = (self.origin[self.position-1])
             elif(str.lower(self.origin[self.position-1:self.position+3]) == "else"):
                 self.actual.Type = "ELSE"
                 self.actual.value = (self.origin[self.position-1])
@@ -346,10 +435,8 @@ class Tokenizer:
                 self.actual.Type = "EQUAL"
                 self.actual.value = (self.origin[self.position-1])
             elif(self.origin[self.position-1] == "$"):
-
                 init = self.position-1
                 while ((self.origin[self.position] not in list_reserved) and (self.position+1 <= len(self.origin))):
-
                     self.position += 1
                 end = self.position
                 if(self.origin[init+1:end] in list_reserved):
@@ -363,6 +450,18 @@ class Tokenizer:
             elif(self.origin[self.position-1] == ";"):
                 self.actual.Type = "ENDLINE"
                 self.actual.value = (self.origin[self.position-1])
+            elif(re.match(r'[A-Za-z]', self.origin[self.position-1]) and (-1 != self.origin.find('(', self.position))):
+                end = self.origin.find('(', self.position)
+                if(self.origin[self.position-1:end] in list_reserved):
+                    raise Exception("Error, token reserved: %s" %
+                                    self.origin[init+1:end])
+                elif(not re.match(r'[A-Za-z]+[A-Za-z0-9_]*$', self.origin[self.position-1:end])):
+                    raise Exception("Error, token does not follow the rules of call type. (%s) " % (
+                        self.origin[init+1:end]))
+
+                self.actual.value = self.origin[self.position-1:end]
+                self.actual.Type = "FUNCTION_CALL"
+                self.position += len(self.actual.value)-1
 
             else:
                 raise Exception(
@@ -408,6 +507,20 @@ class Parser:
                     un = UnOp("!")
                     un.children = Parser.parseFactor(tokens)
                 return un
+
+            elif(Parser.tokens.actual.Type == "FUNCTION_CALL"):
+                callFunc = FuncCall(Parser.tokens.actual.value)
+                Parser.tokens.selectNext()
+                if(Parser.tokens.actual.Type != "OPENPAR"):
+                    raise Exception("Error, equal not found after Assignment")
+
+                while (Parser.tokens.actual.Type != "CLOSEPAR"):
+                    callFunc.children.append(Parser.parseRelexpr(tokens))
+
+                if(Parser.tokens.actual.Type != "CLOSEPAR"):
+                    raise Exception("Error, equal not found after Assignment")
+                Parser.tokens.selectNext()
+                return callFunc
 
             elif (Parser.tokens.actual.Type == "OPENPAR"):
                 temp = Parser.parseRelexpr(tokens)
@@ -497,6 +610,50 @@ class Parser:
         if(Parser.tokens.actual.Type == "ENDLINE"):
             Parser.tokens.selectNext()
             return NoOp()
+
+        elif(Parser.tokens.actual.Type == "FUNCTION"):
+            name = Parser.tokens.actual.value
+            list_data = []
+            Parser.tokens.selectNext()
+            if(Parser.tokens.actual.Type != "OPENPAR"):
+                raise Exception(
+                    "Error, OPENPAR not found after FUNCTION assignment")
+            Parser.tokens.selectNext()
+            while(Parser.tokens.actual.Type == "IDENTIFIER"):
+                val = IdentifierOp(Parser.tokens.actual.value)
+                list_data.append(val)
+                Parser.tokens.selectNext()
+                if(Parser.tokens.actual.Type not in ["COMMA", "CLOSEPAR"]):
+                    raise Exception("Error while creating function call")
+                Parser.tokens.selectNext()
+            list_data.append(Parser.parseCommand(tokens))
+            tt = FuncDec(name, list_data)
+            return tt
+
+        elif(Parser.tokens.actual.Type == "FUNCTION_CALL"):
+            callFunc = FuncCall(Parser.tokens.actual.value)
+            Parser.tokens.selectNext()
+            if(Parser.tokens.actual.Type != "OPENPAR"):
+                raise Exception("Error, equal not found after Assignment")
+            Parser.tokens.selectNext()
+
+            while (Parser.tokens.actual.Type != "CLOSEPAR"):
+                if(Parser.tokens.actual.Type == "IDENTIFIER"):
+                    callFunc.children.append(Parser.parseRelexpr(tokens))
+                elif(Parser.tokens.actual.Type == "COMMA"):
+                    pass
+                else:
+                    raise Exception(
+                        "Error on closing function call (%s)" % Parser.tokens.actual.value)
+                Parser.tokens.selectNext()
+            Parser.tokens.selectNext()
+            return callFunc
+
+        elif(Parser.tokens.actual.Type == "RETURN"):
+            child = Parser.parseRelexpr(tokens)
+            ret = ReturnOp(child)
+            return ret
+
         elif(Parser.tokens.actual.Type == "IDENTIFIER"):
             temp = AssingnmentOp(Parser.tokens.actual.value)
             Parser.tokens.selectNext()
@@ -583,6 +740,7 @@ class Parser:
     @staticmethod
     def run(origin):
         Parser.tokens = Tokenizer(PrePro.filter(origin))
+
         Parser.tokens.selectNext()
         final = Parser.parseProgram(Parser.tokens)
         if(Parser.tokens.actual.Type == "EOF"):
