@@ -29,12 +29,12 @@ class SymbolTableFunc():
 
     def setter(self, chave, valor, tipo):
         if(chave in self.mainDict):
-            raise Exception ("Can't declare same function twice")
+            raise Exception("Can't declare same function twice")
         self.mainDict[chave] = valor, tipo
 
     def getter(self, chave):
         if(chave not in self.mainDict):
-            raise Exception ("Function '%s' hasn't been declared" % chave)
+            raise Exception("Function '%s' hasn't been declared" % chave)
         return self.mainDict[chave]
 
 
@@ -216,6 +216,7 @@ class FuncCall(Node):
             temp_ret = SymbolTable().getter("aa9e668b18dd9838d42e4a1b62a79887")
             SymbolTable().setall(dict_temp)
             return temp_ret
+
         SymbolTable().setall(dict_temp)
 
 
@@ -225,7 +226,8 @@ class ReturnOp(Node):
         self.value = None
 
     def Evaluate(self):
-        SymbolTable().setter("aa9e668b18dd9838d42e4a1b62a79887", self.children.Evaluate()[0],self.children.Evaluate()[1])
+        SymbolTable().setter("aa9e668b18dd9838d42e4a1b62a79887",
+                             self.children.Evaluate()[0], self.children.Evaluate()[1])
 
 
 class EchoOp(Node):
@@ -512,13 +514,15 @@ class Parser:
                 callFunc = FuncCall(Parser.tokens.actual.value)
                 Parser.tokens.selectNext()
                 if(Parser.tokens.actual.Type != "OPENPAR"):
-                    raise Exception("Error, equal not found after Assignment")
+                    raise Exception(
+                        "Error, OPENPAR not found after FUNCTION_CALL")
 
                 while (Parser.tokens.actual.Type != "CLOSEPAR"):
                     callFunc.children.append(Parser.parseRelexpr(tokens))
 
                 if(Parser.tokens.actual.Type != "CLOSEPAR"):
-                    raise Exception("Error, equal not found after Assignment")
+                    raise Exception(
+                        "Error, CLOSEPAR not found after FUNCTION_CALL")
                 Parser.tokens.selectNext()
                 return callFunc
 
@@ -634,18 +638,14 @@ class Parser:
             callFunc = FuncCall(Parser.tokens.actual.value)
             Parser.tokens.selectNext()
             if(Parser.tokens.actual.Type != "OPENPAR"):
-                raise Exception("Error, equal not found after Assignment")
-            Parser.tokens.selectNext()
+                raise Exception("Error, OPENPAR not found after FUNCTION_CALL")
 
             while (Parser.tokens.actual.Type != "CLOSEPAR"):
-                if(Parser.tokens.actual.Type == "IDENTIFIER"):
-                    callFunc.children.append(Parser.parseRelexpr(tokens))
-                elif(Parser.tokens.actual.Type == "COMMA"):
-                    pass
-                else:
-                    raise Exception(
-                        "Error on closing function call (%s)" % Parser.tokens.actual.value)
-                Parser.tokens.selectNext()
+                callFunc.children.append(Parser.parseRelexpr(tokens))
+
+            if(Parser.tokens.actual.Type != "CLOSEPAR"):
+                raise Exception(
+                    "Error, CLOSEPAR not found after FUNCTION_CALL")
             Parser.tokens.selectNext()
             return callFunc
 
