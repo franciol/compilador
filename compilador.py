@@ -740,6 +740,9 @@ if __name__ == '__main__':
             # line = line.replace(' ', '')
             value = Parser.run(line)
             value.Evaluate()
-        print(ASM_JUNCT().flush())
+        
+        file = open(file_php[:-4]+".asm", "w+") 
+        file.write(ASM_JUNCT().flush())
+        file.close()
     else:
         raise Exception("Type error: %s is not a '.php' file" % (file_php))
