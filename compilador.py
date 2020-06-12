@@ -7,8 +7,13 @@ list_reserved = ['echo', '$', ';', '=', '+', '-', '/', '*', 'if', 'else', ' ',
                  'while', 'readline', 'and', 'or', '<', '>', '==', '!', '(', ')', 'true', 'false', ".", "return", "function", ","]
 
 
+
+
 class SymbolTable():
-    mainDict = {}
+    
+    def __init__(self):
+        self.mainDict = {}
+        self.value = None    
 
     def setter(self, chave, valor, tipo):
         self.mainDict[chave] = valor, tipo
@@ -22,11 +27,16 @@ class SymbolTable():
 
     def getall(self):
         return self.mainDict.copy()
+    
+    def getValue(self):
+        return self.value
 
+    def setValue(self,_value):
+        self.value = _value
 
 class SymbolTableFunc():
     mainDict = {}
-
+    value = None
     def setter(self, chave, valor, tipo):
         if(chave in self.mainDict):
             raise Exception("Can't declare same function twice")
@@ -58,7 +68,7 @@ class BinOp(Node):
         if(self.value == "."):
             return str(child1[0])+str(child2[0]), "STR"
 
-        if((child1[1] in ['BOOL', 'INT']) and (child1[1] in ['BOOL', 'INT'])):
+        if((child1[1] in ['BOOL', 'INT']) and (child2[1] in ['BOOL', 'INT'])):
             if(self.value in ['+', '-', '/', '*']):
                 if(child1[1] == "BOOL"):
                     if(child1[0]):
@@ -86,9 +96,9 @@ class BinOp(Node):
                     child2 = (child2[0] >= 1), "BOOL"
 
                 if(self.value == "and"):
-                    return (child1 and child2), "BOOL"
+                    return (child1[0] and child2[0]), "BOOL"
                 elif(self.value == "or"):
-                    return (child1 or child2), "BOOL"
+                    return (child1[0] or child2[0]), "BOOL"
 
         raise Exception("Error in BinOp: Value unexpected")
 
@@ -98,16 +108,17 @@ class UnOp(Node):
         self.value = value
 
     def Evaluate(self):
-        if(self.children.Evaluate()[1] == "INT"):
+        eval = self.children.Evaluate()
+        if(eval[1] == "INT"):
             if(self.value == "-"):
-                return -self.children.Evaluate()[0], "INT"
+                return -eval[0], "INT"
             elif(self.value == "+"):
-                return self.children.Evaluate()
+                return eval
             if(self.value == "!"):
-                return not self.children.Evaluate()[0], "BOOL"
-        elif(self.children.Evaluate()[1] == "BOOL"):
+                return not eval[0], "BOOL"
+        elif(eval[1] == "BOOL"):
             if(self.value == "!"):
-                return not self.children.Evaluate()[0], "BOOL"
+                return not eval[0], "BOOL"
         raise Exception("Error in UnOp: Value unexpected")
 
 
@@ -123,7 +134,10 @@ class IntVal(Node):
 class BoolVal(Node):
     def __init__(self, value):
         self.children = None
-        self.value = value
+        if(value.lower() == "false" or value == 0):
+            self.value = 0
+        else:
+            self.value = 1
 
     def Evaluate(self):
         return self.value, "BOOL"
@@ -153,7 +167,10 @@ class Commands(Node):
 
     def Evaluate(self):
         for i in self.children:
-            i.Evaluate()
+            if(SymbolTableUsed.getValue() is None):
+                i.Evaluate()
+            else:
+                break
 
 
 class IdentifierOp(Node):
@@ -162,7 +179,7 @@ class IdentifierOp(Node):
         self.value = value
 
     def Evaluate(self):
-        return SymbolTable().getter(self.value)
+        return SymbolTableUsed.getter(self.value)
 
 
 class ReadlineOp(Node):
@@ -170,7 +187,8 @@ class ReadlineOp(Node):
         self.children = None
 
     def Evaluate(self):
-        return int(input()), "INT"
+        ii = input()
+        return int(ii), "INT"
 
 
 class AssingnmentOp(Node):
@@ -179,8 +197,8 @@ class AssingnmentOp(Node):
         self.value = None
 
     def Evaluate(self):
-        SymbolTable().setter(self.children[0], self.children[1].Evaluate()[
-            0], self.children[1].Evaluate()[1])
+        res = self.children[1].Evaluate()
+        SymbolTableUsed.setter(self.children[0], res[0], res[1])
 
 
 class FuncDec(Node):
@@ -198,26 +216,26 @@ class FuncCall(Node):
         self.value = nameFunc
 
     def Evaluate(self):
-
+        global SymbolTableUsed
         temp = SymbolTableFunc().getter(self.value)
-        dict_temp = SymbolTable().getall()
-        new_dict = {}
+        dict_temp = SymbolTableUsed
+        newSymbol = SymbolTable()
+        
         if(len(temp[0].children)-1 != len(self.children)):
             raise Exception("Error on call function. Wrong number of inputs")
 
         for i in range(len(self.children)):
-            new_dict[temp[0].children[i].value] = self.children[i].Evaluate()
+            tmp_child = self.children[i].Evaluate()
+            newSymbol.setter(temp[0].children[i].value,tmp_child[0],tmp_child[1])
 
-        SymbolTable().setall(new_dict.copy())
-
+        SymbolTableUsed = newSymbol
         temp[0].children[-1].Evaluate()
 
-        if("aa9e668b18dd9838d42e4a1b62a79887" in SymbolTable().mainDict):
-            temp_ret = SymbolTable().getter("aa9e668b18dd9838d42e4a1b62a79887")
-            SymbolTable().setall(dict_temp)
+        if(not (SymbolTableUsed.getValue() is None)):
+            temp_ret = SymbolTableUsed.getValue()
+            SymbolTableUsed = dict_temp
             return temp_ret
-
-        SymbolTable().setall(dict_temp)
+        SymbolTableUsed = dict_temp
 
 
 class ReturnOp(Node):
@@ -226,8 +244,8 @@ class ReturnOp(Node):
         self.value = None
 
     def Evaluate(self):
-        SymbolTable().setter("aa9e668b18dd9838d42e4a1b62a79887",
-                             self.children.Evaluate()[0], self.children.Evaluate()[1])
+        tmp = self.children.Evaluate()
+        SymbolTableUsed.setValue(tmp)
 
 
 class EchoOp(Node):
@@ -255,7 +273,7 @@ class IfOp(Node):
         self.children = [child1]
 
     def Evaluate(self):
-        if(self.children[0].Evaluate()[0]):
+        if(self.children[0].Evaluate()[0] >= 1):
             self.children[1].Evaluate()
         elif(len(self.children) == 3):
             self.children[2].Evaluate()
@@ -270,7 +288,7 @@ class RelaxOp(Node):
         child1 = self.children[0].Evaluate()
         child2 = self.children[1].Evaluate()
         if(self.value == "=="):
-            return (self.children[0].Evaluate()[0] == self.children[1].Evaluate()[0]), "BOOL"
+            return (child1[0] == child2[0]), "BOOL"
         elif(self.value == ">"):
             return (child1[0] > child2[0]), "BOOL"
         elif(self.value == "<"):
@@ -376,6 +394,14 @@ class Tokenizer:
             elif(self.origin[self.position-1] == "<"):
                 self.actual.Type = "LESSTHAN"
                 self.actual.value = (self.origin[self.position-1])
+            elif(re.match(r'[A-Za-z]', self.origin[self.position-1]) and (-1 != self.origin.find('(', self.position) and (self.origin[self.position-1:self.origin.find('(', self.position)] not in list_reserved) and (re.match(r'[A-Za-z]+[A-Za-z0-9_]*$', self.origin[self.position-1:self.origin.find('(', self.position)])))):
+                end = self.origin.find('(', self.position)
+                if(self.origin[self.position-1:end] in list_reserved):
+                    raise Exception("Error, token reserved: %s" %
+                                    self.origin[self.position-1:end])
+                self.actual.value = self.origin[self.position-1:end]
+                self.actual.Type = "FUNCTION_CALL"
+                self.position += len(self.actual.value)-1
             elif(str.lower(self.origin[self.position-1:self.position+3]) == "echo"):
                 self.actual.Type = "ECHO"
                 self.actual.value = ("echo")
@@ -452,18 +478,6 @@ class Tokenizer:
             elif(self.origin[self.position-1] == ";"):
                 self.actual.Type = "ENDLINE"
                 self.actual.value = (self.origin[self.position-1])
-            elif(re.match(r'[A-Za-z]', self.origin[self.position-1]) and (-1 != self.origin.find('(', self.position))):
-                end = self.origin.find('(', self.position)
-                if(self.origin[self.position-1:end] in list_reserved):
-                    raise Exception("Error, token reserved: %s" %
-                                    self.origin[init+1:end])
-                elif(not re.match(r'[A-Za-z]+[A-Za-z0-9_]*$', self.origin[self.position-1:end])):
-                    raise Exception("Error, token does not follow the rules of call type. (%s) " % (
-                        self.origin[init+1:end]))
-
-                self.actual.value = self.origin[self.position-1:end]
-                self.actual.Type = "FUNCTION_CALL"
-                self.position += len(self.actual.value)-1
 
             else:
                 raise Exception(
@@ -514,12 +528,12 @@ class Parser:
                 callFunc = FuncCall(Parser.tokens.actual.value)
                 Parser.tokens.selectNext()
                 if(Parser.tokens.actual.Type != "OPENPAR"):
-                    raise Exception(
-                        "Error, OPENPAR not found after FUNCTION_CALL")
-
-                while (Parser.tokens.actual.Type != "CLOSEPAR"):
-                    callFunc.children.append(Parser.parseRelexpr(tokens))
-
+                    raise Exception("Error, OPENPAR not found after FUNCTION_CALL")
+                if(len(Parser.tokens.origin[Parser.tokens.position:Parser.tokens.origin.find(")", Parser.tokens.position)].strip()) != 0):
+                    while (Parser.tokens.actual.Type != "CLOSEPAR"):
+                        callFunc.children.append(Parser.parseRelexpr(tokens))
+                else:
+                    Parser.tokens.selectNext()
                 if(Parser.tokens.actual.Type != "CLOSEPAR"):
                     raise Exception(
                         "Error, CLOSEPAR not found after FUNCTION_CALL")
@@ -552,17 +566,17 @@ class Parser:
         if(Parser.tokens.actual.Type == "MULT"):
             term = BinOp("*")
             term.children.append(temp_value)
-            term.children.append(Parser.parseFactor(tokens))
+            term.children.append(Parser.parseTerm(tokens))
 
         elif(Parser.tokens.actual.Type == "DIV"):
             term = BinOp("/")
             term.children.append(temp_value)
-            term.children.append(Parser.parseFactor(tokens))
+            term.children.append(Parser.parseTerm(tokens))
 
         elif(Parser.tokens.actual.Type == "AND"):
             term = BinOp("and")
             term.children.append(temp_value)
-            term.children.append(Parser.parseFactor(tokens))
+            term.children.append(Parser.parseTerm(tokens))
 
         else:
             return temp_value
@@ -588,7 +602,7 @@ class Parser:
                 main = BinOp(".")
                 main.children.append(temp_value)
 
-            main.children.append(Parser.parseTerm(tokens))
+            main.children.append(Parser.parseExpression(tokens))
             return main
         return temp_value
 
@@ -605,7 +619,7 @@ class Parser:
             elif(Parser.tokens.actual.Type == "LESSTHAN"):
                 main = RelaxOp("<", temp_value)
 
-            main.children.append(Parser.parseExpression(tokens))
+            main.children.append(Parser.parseRelexpr(tokens))
             return main
         return temp_value
 
@@ -623,13 +637,16 @@ class Parser:
                 raise Exception(
                     "Error, OPENPAR not found after FUNCTION assignment")
             Parser.tokens.selectNext()
-            while(Parser.tokens.actual.Type == "IDENTIFIER"):
-                val = IdentifierOp(Parser.tokens.actual.value)
-                list_data.append(val)
-                Parser.tokens.selectNext()
-                if(Parser.tokens.actual.Type not in ["COMMA", "CLOSEPAR"]):
-                    raise Exception("Error while creating function call")
-                Parser.tokens.selectNext()
+            if(Parser.tokens.actual.Type != "CLOSEPAR"):
+                while(Parser.tokens.actual.Type == "IDENTIFIER"):
+                    val = IdentifierOp(Parser.tokens.actual.value)
+                    list_data.append(val)
+                    Parser.tokens.selectNext()
+                    if(Parser.tokens.actual.Type not in ["COMMA", "CLOSEPAR"]):
+                        raise Exception("Error while creating function call")
+                    if(Parser.tokens.actual.Type in ["COMMA"]):
+                        Parser.tokens.selectNext()
+            Parser.tokens.selectNext()
             list_data.append(Parser.parseCommand(tokens))
             tt = FuncDec(name, list_data)
             return tt
@@ -639,10 +656,11 @@ class Parser:
             Parser.tokens.selectNext()
             if(Parser.tokens.actual.Type != "OPENPAR"):
                 raise Exception("Error, OPENPAR not found after FUNCTION_CALL")
-
-            while (Parser.tokens.actual.Type != "CLOSEPAR"):
-                callFunc.children.append(Parser.parseRelexpr(tokens))
-
+            if(len(Parser.tokens.origin[Parser.tokens.position:Parser.tokens.origin.find(")", Parser.tokens.position)].strip()) != 0):
+                while (Parser.tokens.actual.Type != "CLOSEPAR"):
+                    callFunc.children.append(Parser.parseRelexpr(tokens))
+            else:
+                Parser.tokens.selectNext()
             if(Parser.tokens.actual.Type != "CLOSEPAR"):
                 raise Exception(
                     "Error, CLOSEPAR not found after FUNCTION_CALL")
@@ -694,11 +712,11 @@ class Parser:
             Parser.tokens.selectNext()
             if(Parser.tokens.actual.Type != "OPENPAR"):
                 raise Exception("Error, '(' expected")
+
             iff = IfOp(Parser.parseRelexpr(tokens))
             if(Parser.tokens.actual.Type != "CLOSEPAR"):
                 raise Exception("Error, ')' expected  (%s)" %
                                 (Parser.tokens.actual.value))
-
             Parser.tokens.selectNext()
             iff.children.append(Parser.parseCommand(tokens))
             if(Parser.tokens.actual.Type == "ELSE"):
@@ -765,8 +783,10 @@ if __name__ == '__main__':
         with open(file_php) as fp:
             lines = fp.read()
             line = lines.replace('\n', '')
-            #line = line.replace(' ', '')
-            value = Parser.run(line)
+            value = Parser.run(line) 
+
+            global SymbolTableUsed 
+            SymbolTableUsed = SymbolTable()
             value.Evaluate()
 
     else:
